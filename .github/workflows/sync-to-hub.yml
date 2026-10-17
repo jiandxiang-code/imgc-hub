@@ -10,10 +10,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Sync to Hugging Face
-        uses: huggingface/hub-sync@v0.3.0
+
+      - name: Check HF_TOKEN secret
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::error::Repository secret HF_TOKEN is empty. Add it under Settings → Secrets and variables → Actions (name must be exactly HF_TOKEN)."
+            exit 1
+          fi
+          echo "HF_TOKEN is present."
+
+      - uses: actions/setup-python@v5
         with:
-          github_repo_id: ${{ github.repository }}
-          huggingface_repo_id: IMGC-Token/imgc
-          hf_token: ${{ secrets.HF_TOKEN }}
-          repo_type: model
+          python-version: "3.12"
+
+      - name: Upload README to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          pip install -q "huggingface_hub>=0.25"
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          api.upload_file(
+              path_or_fileobj="README.md",
+              path_in_repo="README.md",
+              repo_id="IMGC-Token/imgc",
+              repo_type="model",
+              commit_message=f"Sync from GitHub @ {os.environ.get('GITHUB_SHA', '')[:7]}",
+          )
+          print("Synced to https://huggingface.co/IMGC-Token/imgc")
+          PY
